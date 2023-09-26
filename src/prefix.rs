@@ -1,4 +1,4 @@
-use crate::NextPage;
+use crate::{KeysQuery, NextPage, PaginatedQuery};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_schema::serde::de::DeserializeOwned;
 use cosmwasm_schema::serde::Serialize;
@@ -7,54 +7,43 @@ use cw_storage_plus::{Bound, KeyDeserialize, Map, PrimaryKey};
 use std::iter::Take;
 use std::marker::PhantomData;
 
-pub type DefaultPrefixPage<'a, K, P, S> = PrefixPage<'a, 50, K, P, S>;
+pub type DefaultPrefixPage<'a, Key, Prefix, Suffix> = PrefixPage<'a, 50, Key, Prefix, Suffix>;
 #[cw_serde]
-pub struct PrefixPage<'a, const LIMIT: usize, K, P, S>
+pub struct PrefixPage<'a, const LIMIT: usize, Key, Prefix, Suffix>
 where
-    K: PrimaryKey<'a, Prefix = P, Suffix = S>,
-    S: PrimaryKey<'a> + KeyDeserialize + Serialize + DeserializeOwned + Clone,
-    P: Serialize,
+    Key: PrimaryKey<'a, Prefix = Prefix, Suffix = Suffix>,
+    Suffix: PrimaryKey<'a> + KeyDeserialize + Serialize + DeserializeOwned + Clone,
+    Prefix: Serialize,
 {
-    pub prefix: K::Prefix,
-    pub start: Option<K::Suffix>,
+    pub prefix: Key::Prefix,
+    pub start: Option<Key::Suffix>,
     pub qty: Option<usize>,
 }
 
-impl<'a, const LIMIT: usize, K, P, S, SO> PrefixPage<'a, LIMIT, K, P, S>
+impl<'a, const LIMIT: usize, Key, Prefix, Suffix, SO, Value, Data>
+    PaginatedQuery<'a, Key, Value, Data> for PrefixPage<'a, LIMIT, Key, Prefix, Suffix>
 where
-    K: PrimaryKey<'a, Prefix = P, Suffix = S> + KeyDeserialize<Output = K> + Clone + 'static,
-    P: Serialize + DeserializeOwned,
-    S: PrimaryKey<'a> + KeyDeserialize<Output = SO> + Serialize + DeserializeOwned + Clone,
-    SO: 'static,
+    Key: PrimaryKey<'a, Prefix = Prefix, Suffix = Suffix>
+        + KeyDeserialize<Output = Key>
+        + Clone
+        + 'static,
+    Prefix: Serialize + DeserializeOwned,
+    Suffix: PrimaryKey<'a> + KeyDeserialize<Output = SO> + Serialize + DeserializeOwned + Clone,
+    SO: Clone + 'static,
+    Value: Serialize + DeserializeOwned + Clone + 'static,
+    Data: Serialize + DeserializeOwned,
 {
-    pub fn keys<V>(
-        self,
-        storage: &'a dyn Storage,
-        map: &Map<'a, K, V>,
-    ) -> Take<Box<dyn Iterator<Item = StdResult<S::Output>> + 'a>>
-    where
-        V: Serialize + DeserializeOwned + Clone + 'static,
-    {
-        map.prefix(self.prefix)
-            .keys(
-                storage,
-                self.start.map(|s| Bound::Exclusive((s, PhantomData))),
-                None,
-                Order::Ascending,
-            )
-            .take(self.qty.unwrap_or(LIMIT))
-    }
+    type POutput = NextPage<Data, Suffix::Output>;
+    type FuncKey = Suffix::Output;
 
-    pub fn into_pagination<D, V, A>(
+    fn into_pagination<Function>(
         self,
         storage: &'a dyn Storage,
-        map: &Map<'a, K, V>,
-        transform: A,
-    ) -> StdResult<NextPage<D, S::Output>>
+        map: &Map<'a, Key, Value>,
+        transform: Function,
+    ) -> StdResult<Self::POutput>
     where
-        D: Serialize + DeserializeOwned,
-        V: Serialize + DeserializeOwned + Clone + 'static,
-        A: FnOnce(&S::Output, V) -> D + Copy,
+        Function: FnOnce(Self::FuncKey, Value) -> Data + Copy,
     {
         let mut keys = map
             .prefix(self.prefix)
@@ -71,7 +60,7 @@ where
         let mut next = keys.next();
         while let Some(key) = next {
             let (key, value) = key?;
-            let res = transform(&key, value);
+            let res = transform(key.clone(), value);
             data.push(res);
 
             next = keys.next();
@@ -89,9 +78,38 @@ where
     }
 }
 
+impl<'a, const LIMIT: usize, Key, Prefix, Suffix, SO, Value> KeysQuery<'a, Key, Value>
+    for PrefixPage<'a, LIMIT, Key, Prefix, Suffix>
+where
+    Key: PrimaryKey<'a, Prefix = Prefix, Suffix = Suffix>
+        + KeyDeserialize<Output = Key>
+        + Clone
+        + 'static,
+    Prefix: Serialize + DeserializeOwned,
+    Suffix: PrimaryKey<'a> + KeyDeserialize<Output = SO> + Serialize + DeserializeOwned + Clone,
+    SO: 'static,
+    Value: Serialize + DeserializeOwned + Clone + 'static,
+{
+    type KOutput = Suffix::Output;
+    fn keys(
+        self,
+        storage: &'a dyn Storage,
+        map: &Map<'a, Key, Value>,
+    ) -> Take<Box<dyn Iterator<Item = StdResult<Self::KOutput>> + 'a>> {
+        map.prefix(self.prefix)
+            .keys(
+                storage,
+                self.start.map(|s| Bound::Exclusive((s, PhantomData))),
+                None,
+                Order::Ascending,
+            )
+            .take(self.qty.unwrap_or(LIMIT))
+    }
+}
+
 #[cfg(test)]
 mod test {
-    use crate::PrefixPage;
+    use crate::{KeysQuery, PaginatedQuery, PrefixPage};
     use cosmwasm_std::testing::mock_dependencies;
     use cw_storage_plus::Map;
 

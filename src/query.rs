@@ -1,4 +1,4 @@
-use crate::NextPage;
+use crate::{KeysQuery, NextPage, PaginatedQuery};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_schema::serde::de::DeserializeOwned;
 use cosmwasm_schema::serde::Serialize;
@@ -15,38 +15,24 @@ pub struct Page<const LIMIT: usize, K> {
     pub qty: Option<usize>,
 }
 
-impl<'a, const LIMIT: usize, K> Page<LIMIT, K>
+impl<'a, const LIMIT: usize, Key, Value, Data> PaginatedQuery<'a, Key, Value, Data>
+    for Page<LIMIT, Key>
 where
-    K: PrimaryKey<'a> + KeyDeserialize<Output = K> + Clone + 'static,
+    Data: Serialize + DeserializeOwned,
+    Key: PrimaryKey<'a> + KeyDeserialize<Output = Key> + Clone + 'static,
+    Value: Serialize + DeserializeOwned + Clone + 'static,
 {
-    /// Get an iterator of map keys
-    pub fn keys<V>(
-        self,
-        storage: &'a dyn Storage,
-        map: &Map<'a, K, V>,
-    ) -> Take<Box<dyn Iterator<Item = StdResult<K::Output>> + 'a>>
-    where
-        V: Serialize + DeserializeOwned + Clone + 'static,
-    {
-        map.keys(
-            storage,
-            self.start.map(|s| Bound::Exclusive((s, PhantomData))),
-            None,
-            Order::Ascending,
-        )
-        .take(self.qty.unwrap_or(LIMIT))
-    }
+    type POutput = NextPage<Data, Key>;
+    type FuncKey = Key;
 
-    pub fn into_pagination<D, V, A>(
+    fn into_pagination<Function>(
         self,
         storage: &'a dyn Storage,
-        map: &Map<'a, K, V>,
-        transform: A,
-    ) -> StdResult<NextPage<D, K>>
+        map: &Map<'a, Key, Value>,
+        transform: Function,
+    ) -> StdResult<Self::POutput>
     where
-        D: Serialize + DeserializeOwned,
-        V: Serialize + DeserializeOwned + Clone + 'static,
-        A: FnOnce(K, V) -> D + Copy,
+        Function: FnOnce(Self::FuncKey, Value) -> Data + Copy,
     {
         let mut range = map
             .range(
@@ -81,10 +67,30 @@ where
         })
     }
 }
+impl<'a, const LIMIT: usize, Key, Value> KeysQuery<'a, Key, Value> for Page<LIMIT, Key>
+where
+    Key: PrimaryKey<'a> + KeyDeserialize<Output = Key> + Clone + 'static,
+    Value: Serialize + DeserializeOwned + Clone + 'static,
+{
+    type KOutput = Key::Output;
+    fn keys(
+        self,
+        storage: &'a dyn Storage,
+        map: &Map<'a, Key, Value>,
+    ) -> Take<Box<dyn Iterator<Item = StdResult<Self::KOutput>> + 'a>> {
+        map.keys(
+            storage,
+            self.start.map(|s| Bound::Exclusive((s, PhantomData))),
+            None,
+            Order::Ascending,
+        )
+        .take(self.qty.unwrap_or(LIMIT))
+    }
+}
 
 #[cfg(test)]
 mod test {
-    use crate::Page;
+    use crate::{KeysQuery, Page, PaginatedQuery};
     use cosmwasm_std::testing::mock_dependencies;
     use cw_storage_plus::Map;
 

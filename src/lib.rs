@@ -10,7 +10,7 @@ use cw_storage_plus::Map;
 use std::iter::Take;
 
 #[cw_serde]
-pub struct Pagination<D, K> {
+pub struct NextPage<D, K> {
     pub data: Vec<D>,
     pub next: Option<K>,
     pub qty: usize,

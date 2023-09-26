@@ -1,4 +1,4 @@
-use crate::Pagination;
+use crate::NextPage;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_schema::serde::de::DeserializeOwned;
 use cosmwasm_schema::serde::Serialize;
@@ -7,9 +7,9 @@ use cw_storage_plus::{Bound, KeyDeserialize, Map, PrimaryKey};
 use std::iter::Take;
 use std::marker::PhantomData;
 
-pub type DefaultPrefixQuery<'a, K, P, S> = PrefixQuery<'a, 50, K, P, S>;
+pub type DefaultPrefixPage<'a, K, P, S> = PrefixPage<'a, 50, K, P, S>;
 #[cw_serde]
-pub struct PrefixQuery<'a, const LIMIT: usize, K, P, S>
+pub struct PrefixPage<'a, const LIMIT: usize, K, P, S>
 where
     K: PrimaryKey<'a, Prefix = P, Suffix = S>,
     S: PrimaryKey<'a> + KeyDeserialize + Serialize + DeserializeOwned + Clone,
@@ -20,7 +20,7 @@ where
     pub qty: Option<usize>,
 }
 
-impl<'a, const LIMIT: usize, K, P, S, SO> PrefixQuery<'a, LIMIT, K, P, S>
+impl<'a, const LIMIT: usize, K, P, S, SO> PrefixPage<'a, LIMIT, K, P, S>
 where
     K: PrimaryKey<'a, Prefix = P, Suffix = S> + KeyDeserialize<Output = K> + Clone + 'static,
     P: Serialize + DeserializeOwned,
@@ -50,7 +50,7 @@ where
         storage: &'a dyn Storage,
         map: &Map<'a, K, V>,
         transform: A,
-    ) -> StdResult<Pagination<D, S::Output>>
+    ) -> StdResult<NextPage<D, S::Output>>
     where
         D: Serialize + DeserializeOwned,
         V: Serialize + DeserializeOwned + Clone + 'static,
@@ -81,7 +81,7 @@ where
         }
 
         let len = data.len();
-        Ok(Pagination {
+        Ok(NextPage {
             data,
             next: end,
             qty: len,
@@ -91,7 +91,7 @@ where
 
 #[cfg(test)]
 mod test {
-    use crate::PrefixQuery;
+    use crate::PrefixPage;
     use cosmwasm_std::testing::mock_dependencies;
     use cw_storage_plus::Map;
 
@@ -111,7 +111,7 @@ mod test {
             "string-2".to_string()
         );
 
-        let query: PrefixQuery<20, _, _, _> = PrefixQuery {
+        let query: PrefixPage<20, _, _, _> = PrefixPage {
             prefix: 1,
             start: None,
             qty: None,
@@ -130,7 +130,7 @@ mod test {
             }
         }
 
-        let query: PrefixQuery<20, _, _, _> = PrefixQuery {
+        let query: PrefixPage<20, _, _, _> = PrefixPage {
             prefix: 1,
             start: None,
             qty: Some(5),
@@ -149,7 +149,7 @@ mod test {
             }
         }
 
-        let query: PrefixQuery<20, _, _, _> = PrefixQuery {
+        let query: PrefixPage<20, _, _, _> = PrefixPage {
             prefix: 1,
             start: Some(5),
             qty: Some(5),
@@ -180,7 +180,7 @@ mod test {
                 .unwrap();
         }
 
-        let query: PrefixQuery<20, _, _, _> = PrefixQuery {
+        let query: PrefixPage<20, _, _, _> = PrefixPage {
             prefix: 1,
             start: None,
             qty: None,
@@ -200,7 +200,7 @@ mod test {
         assert_eq!(res.data.get(0).unwrap(), "new-string-000");
         assert_eq!(res.data.get(19).unwrap(), "new-string-019");
 
-        let query: PrefixQuery<30, _, _, _> = PrefixQuery {
+        let query: PrefixPage<30, _, _, _> = PrefixPage {
             prefix: 1,
             start: res.next,
             qty: Some(15),

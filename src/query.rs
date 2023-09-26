@@ -1,4 +1,4 @@
-use crate::Pagination;
+use crate::NextPage;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_schema::serde::de::DeserializeOwned;
 use cosmwasm_schema::serde::Serialize;
@@ -7,15 +7,15 @@ use cw_storage_plus::{Bound, KeyDeserialize, Map, PrimaryKey};
 use std::iter::Take;
 use std::marker::PhantomData;
 
-pub type DefaultQuery<'a, S> = Query<50, S>;
+pub type DefaultPage<'a, S> = Page<50, S>;
 
 #[cw_serde]
-pub struct Query<const LIMIT: usize, K> {
+pub struct Page<const LIMIT: usize, K> {
     pub start: Option<K>,
     pub qty: Option<usize>,
 }
 
-impl<'a, const LIMIT: usize, K> Query<LIMIT, K>
+impl<'a, const LIMIT: usize, K> Page<LIMIT, K>
 where
     K: PrimaryKey<'a> + KeyDeserialize<Output = K> + Clone + 'static,
 {
@@ -42,7 +42,7 @@ where
         storage: &'a dyn Storage,
         map: &Map<'a, K, V>,
         transform: A,
-    ) -> StdResult<Pagination<D, K>>
+    ) -> StdResult<NextPage<D, K>>
     where
         D: Serialize + DeserializeOwned,
         V: Serialize + DeserializeOwned + Clone + 'static,
@@ -74,7 +74,7 @@ where
         }
 
         let len = data.len();
-        Ok(Pagination {
+        Ok(NextPage {
             data,
             next: end,
             qty: len,
@@ -84,7 +84,7 @@ where
 
 #[cfg(test)]
 mod test {
-    use crate::Query;
+    use crate::Page;
     use cosmwasm_std::testing::mock_dependencies;
     use cw_storage_plus::Map;
 
@@ -104,7 +104,7 @@ mod test {
             "string-2".to_string()
         );
 
-        let query: Query<20, _> = Query {
+        let query: Page<20, _> = Page {
             start: None,
             qty: None,
         };
@@ -122,7 +122,7 @@ mod test {
             }
         }
 
-        let query: Query<20, _> = Query {
+        let query: Page<20, _> = Page {
             start: None,
             qty: Some(5),
         };
@@ -140,7 +140,7 @@ mod test {
             }
         }
 
-        let query: Query<20, _> = Query {
+        let query: Page<20, _> = Page {
             start: Some(5),
             qty: Some(5),
         };
@@ -170,7 +170,7 @@ mod test {
                 .unwrap();
         }
 
-        let query: Query<20, _> = Query {
+        let query: Page<20, _> = Page {
             start: None,
             qty: None,
         };
@@ -189,7 +189,7 @@ mod test {
         assert_eq!(res.data.get(0).unwrap(), "new-string-000");
         assert_eq!(res.data.get(19).unwrap(), "new-string-019");
 
-        let query: Query<30, _> = Query {
+        let query: Page<30, _> = Page {
             start: res.next,
             qty: Some(15),
         };

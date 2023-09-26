@@ -60,20 +60,17 @@ where
         let mut end = None;
 
         let mut next = range.next();
-        loop {
-            if let Some(key) = next {
-                let (key, value) = key?;
 
-                next = range.next();
-                if next.is_none() {
-                    end = Some(key.clone());
-                }
+        while let Some(key) = next {
+            let (key, value) = key?;
 
-                let res = transform(key, value);
-                data.push(res);
-            } else {
-                break;
+            next = range.next();
+            if next.is_none() {
+                end = Some(key.clone());
             }
+
+            let res = transform(key, value);
+            data.push(res);
         }
 
         let len = data.len();

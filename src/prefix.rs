@@ -69,18 +69,14 @@ where
         let mut end = None;
 
         let mut next = keys.next();
-        loop {
-            if let Some(key) = next {
-                let (key, value) = key?;
-                let res = transform(&key, value);
-                data.push(res);
+        while let Some(key) = next {
+            let (key, value) = key?;
+            let res = transform(&key, value);
+            data.push(res);
 
-                next = keys.next();
-                if next.is_none() {
-                    end = Some(key);
-                }
-            } else {
-                break;
+            next = keys.next();
+            if next.is_none() {
+                end = Some(key);
             }
         }
 

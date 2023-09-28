@@ -6,7 +6,7 @@ pub use query::*;
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{StdResult, Storage};
-use cw_storage_plus::{KeyDeserialize, Map};
+use cw_storage_plus::Map;
 use std::iter::Take;
 
 #[cw_serde]
@@ -25,21 +25,18 @@ pub trait PaginatedQuery<'a, Key, Value, Data> {
     fn into_pagination<Function>(
         self,
         storage: &'a dyn Storage,
-        map: &Map<'a, Key, Value>,
+        map: &Map<'static, Key, Value>,
         transform: Function,
     ) -> StdResult<Self::POutput>
     where
-        Function: FnOnce(Self::FuncKey, Value) -> Data + Copy;
+        Function: FnOnce(&Self::FuncKey, Value) -> Data + Copy;
 }
 
-pub trait KeysQuery<'a, Key, Value>
-where
-    Key: KeyDeserialize<Output = Key> + Clone,
-{
+pub trait KeysQuery<'a, Key, Value> {
     type KOutput;
     fn keys(
         self,
         storage: &'a dyn Storage,
-        map: &Map<'a, Key, Value>,
+        map: &Map<'static, Key, Value>,
     ) -> Take<Box<dyn Iterator<Item = StdResult<Self::KOutput>> + 'a>>;
 }

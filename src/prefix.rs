@@ -23,10 +23,7 @@ where
 impl<'a, const LIMIT: usize, Key, Prefix, Suffix, SO, Value, Data>
     PaginatedQuery<'a, Key, Value, Data> for PrefixPage<'a, LIMIT, Key, Prefix, Suffix>
 where
-    Key: PrimaryKey<'a, Prefix = Prefix, Suffix = Suffix>
-        + KeyDeserialize<Output = Key>
-        + Clone
-        + 'static,
+    Key: PrimaryKey<'a, Prefix = Prefix, Suffix = Suffix> + KeyDeserialize<Output = Key> + Clone,
     Prefix: Serialize + DeserializeOwned,
     Suffix: PrimaryKey<'a> + KeyDeserialize<Output = SO> + Serialize + DeserializeOwned + Clone,
     SO: Clone + 'static,
@@ -39,11 +36,11 @@ where
     fn into_pagination<Function>(
         self,
         storage: &'a dyn Storage,
-        map: &Map<'a, Key, Value>,
+        map: &Map<'static, Key, Value>,
         transform: Function,
     ) -> StdResult<Self::POutput>
     where
-        Function: FnOnce(Self::FuncKey, Value) -> Data + Copy,
+        Function: FnOnce(&Self::FuncKey, Value) -> Data + Copy,
     {
         let mut keys = map
             .prefix(self.prefix)
@@ -60,7 +57,7 @@ where
         let mut next = keys.next();
         while let Some(key) = next {
             let (key, value) = key?;
-            let res = transform(key.clone(), value);
+            let res = transform(&key.clone(), value);
             data.push(res);
 
             next = keys.next();
@@ -81,10 +78,7 @@ where
 impl<'a, const LIMIT: usize, Key, Prefix, Suffix, SO, Value> KeysQuery<'a, Key, Value>
     for PrefixPage<'a, LIMIT, Key, Prefix, Suffix>
 where
-    Key: PrimaryKey<'a, Prefix = Prefix, Suffix = Suffix>
-        + KeyDeserialize<Output = Key>
-        + Clone
-        + 'static,
+    Key: PrimaryKey<'a, Prefix = Prefix, Suffix = Suffix> + KeyDeserialize<Output = Key> + Clone,
     Prefix: Serialize + DeserializeOwned,
     Suffix: PrimaryKey<'a> + KeyDeserialize<Output = SO> + Serialize + DeserializeOwned + Clone,
     SO: 'static,
@@ -94,7 +88,7 @@ where
     fn keys(
         self,
         storage: &'a dyn Storage,
-        map: &Map<'a, Key, Value>,
+        map: &Map<'static, Key, Value>,
     ) -> Take<Box<dyn Iterator<Item = StdResult<Self::KOutput>> + 'a>> {
         map.prefix(self.prefix)
             .keys(

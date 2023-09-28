@@ -28,7 +28,6 @@ where
     Suffix: PrimaryKey<'a> + KeyDeserialize<Output = SO> + Serialize + DeserializeOwned + Clone,
     SO: Clone + 'static,
     Value: Serialize + DeserializeOwned + Clone + 'static,
-    Data: Serialize + DeserializeOwned,
 {
     type POutput = NextPage<Data, Suffix::Output>;
     type FuncKey = Suffix::Output;

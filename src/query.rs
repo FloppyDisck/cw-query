@@ -18,7 +18,6 @@ pub struct Page<const LIMIT: usize, K> {
 impl<'a, const LIMIT: usize, Key, Value, Data> PaginatedQuery<'a, Key, Value, Data>
     for Page<LIMIT, Key>
 where
-    Data: Serialize + DeserializeOwned,
     Key: PrimaryKey<'a> + KeyDeserialize + Clone,
     <Key as KeyDeserialize>::Output: 'static,
     Value: Serialize + DeserializeOwned + Clone,
